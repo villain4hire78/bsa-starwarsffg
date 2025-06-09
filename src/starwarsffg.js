@@ -35,19 +35,24 @@ export class StarWarsFFG {
       difficulty: options.difficulty || 0
     };
 
-    // Use the FFG system's dice roller
-    return game.ffg?.DiceHelpers?.rollSkillDirect(
-      dicePool,
-      actor,
-      {
-        skill: skillId,
-        ...options
-      }
-    );
+    // Try different ways to access the FFG dice roller
+    if (game.ffg?.DiceHelpers?.rollSkillDirect) {
+      return game.ffg.DiceHelpers.rollSkillDirect(dicePool, actor, { skill: skillId, ...options });
+    } else if (game.starwarsffg?.DiceHelpers?.rollSkillDirect) {
+      return game.starwarsffg.DiceHelpers.rollSkillDirect(dicePool, actor, { skill: skillId, ...options });
+    } else {
+      ui.notifications.warn("FFG dice roller not available, using basic roll");
+      // Fallback to basic roll
+      const total = dicePool.ability + dicePool.proficiency + dicePool.boost - dicePool.setback;
+      return new Roll(`${total}d6`).evaluate({async: false});
+    }
   }
 
   actorCurrencies(actor) {
-    const credits = actor.system.stats?.credits?.value || 0;
+    // Try different possible locations for credits
+    const credits = actor.system.stats?.credits?.value || 
+                   actor.system.credits?.value || 
+                   actor.system.currency?.credits || 0;
     return [
       {
         name: "Credits",
@@ -62,7 +67,10 @@ export class StarWarsFFG {
     
     for (const cost of costs) {
       if (cost.id === "credits") {
-        const currentCredits = actor.system.stats?.credits?.value || 0;
+        // Try different possible locations for credits
+        const currentCredits = actor.system.stats?.credits?.value || 
+                              actor.system.credits?.value || 
+                              actor.system.currency?.credits || 0;
         const newCredits = currentCredits - cost.value;
         
         if (newCredits < 0) {
@@ -70,7 +78,14 @@ export class StarWarsFFG {
           return false;
         }
         
-        updates["system.stats.credits.value"] = newCredits;
+        // Update the correct path
+        if (actor.system.stats?.credits !== undefined) {
+          updates["system.stats.credits.value"] = newCredits;
+        } else if (actor.system.credits !== undefined) {
+          updates["system.credits.value"] = newCredits;
+        } else {
+          updates["system.currency.credits"] = newCredits;
+        }
       }
     }
     
@@ -83,19 +98,23 @@ export class StarWarsFFG {
   }
 
   actorShortRest(actor, options = {}) {
-    // Star Wars FFG doesn't have traditional short rests
-    // Instead, characters can spend strain to recover
     ui.notifications.info(`${actor.name} takes a moment to catch their breath`);
     
-    // Optionally recover some strain
     if (options.recoverStrain) {
-      const currentStrain = actor.system.stats?.strain?.value || 0;
-      const strainRecovery = Math.min(currentStrain, 2); // Recover 2 strain
+      // Try different possible locations for strain
+      const currentStrain = actor.system.stats?.strain?.value || 
+                           actor.system.strain?.value || 0;
+      const strainRecovery = Math.min(currentStrain, 2);
       
       if (strainRecovery > 0) {
-        actor.update({
-          "system.stats.strain.value": currentStrain - strainRecovery
-        });
+        const updates = {};
+        if (actor.system.stats?.strain !== undefined) {
+          updates["system.stats.strain.value"] = currentStrain - strainRecovery;
+        } else {
+          updates["system.strain.value"] = currentStrain - strainRecovery;
+        }
+        
+        actor.update(updates);
         ui.notifications.info(`${actor.name} recovers ${strainRecovery} strain`);
       }
     }
@@ -104,20 +123,29 @@ export class StarWarsFFG {
   }
 
   actorLongRest(actor, options = {}) {
-    // In Star Wars FFG, this would be similar to extended rest
     const updates = {};
     
-    // Recover all strain
-    const currentStrain = actor.system.stats?.strain?.value || 0;
+    // Try different possible locations for strain and wounds
+    const currentStrain = actor.system.stats?.strain?.value || 
+                         actor.system.strain?.value || 0;
+    const currentWounds = actor.system.stats?.wounds?.value || 
+                         actor.system.wounds?.value || 0;
+    
     if (currentStrain > 0) {
-      updates["system.stats.strain.value"] = 0;
+      if (actor.system.stats?.strain !== undefined) {
+        updates["system.stats.strain.value"] = 0;
+      } else {
+        updates["system.strain.value"] = 0;
+      }
     }
     
-    // Recover some wounds (GM discretion)
-    const currentWounds = actor.system.stats?.wounds?.value || 0;
     const woundRecovery = Math.min(currentWounds, 1);
     if (woundRecovery > 0) {
-      updates["system.stats.wounds.value"] = currentWounds - woundRecovery;
+      if (actor.system.stats?.wounds !== undefined) {
+        updates["system.stats.wounds.value"] = currentWounds - woundRecovery;
+      } else {
+        updates["system.wounds.value"] = currentWounds - woundRecovery;
+      }
     }
     
     if (Object.keys(updates).length > 0) {
@@ -133,24 +161,21 @@ export class StarWarsFFG {
   // ===============================================
 
   itemPile(item) {
-    // Star Wars FFG items that can be stacked
-    const stackableTypes = ['consumable', 'gear', 'weapon', 'armour'];
+    const stackableTypes = ['consumable', 'gear', 'weapon', 'armour', 'equipment'];
     return stackableTypes.includes(item.type);
   }
 
   itemQuantity(item) {
-    return item.system.quantity?.value || 1;
+    return item.system.quantity?.value || item.system.quantity || 1;
   }
 
   itemSetQuantity(item, quantity) {
-    return item.update({
-      "system.quantity.value": quantity
-    });
+    const path = item.system.quantity?.value !== undefined ? "system.quantity.value" : "system.quantity";
+    return item.update({ [path]: quantity });
   }
 
   itemPrice(item) {
-    const price = item.system.price?.value || 0;
-    const rarity = item.system.rarity?.value || 0;
+    const price = item.system.price?.value || item.system.price || 0;
     
     return [
       {
@@ -162,8 +187,6 @@ export class StarWarsFFG {
   }
 
   itemIdentify(item, actor = null) {
-    // Star Wars FFG doesn't typically have identification mechanics
-    // Items are generally known unless they're mysterious artifacts
     if (item.system.identified === false) {
       item.update({"system.identified": true});
       ui.notifications.info(`${item.name} has been identified`);
@@ -248,7 +271,7 @@ export class StarWarsFFG {
         render: (html) => {
           html.find('#user-input').focus();
           html.find('#user-input').on('keypress', function(e) {
-            if (e.which === 13) { // Enter key
+            if (e.which === 13) {
               const value = $(this).val();
               resolve(value);
               dialog.close();
@@ -321,8 +344,7 @@ export class StarWarsFFG {
   // ===============================================
 
   get configSkills() {
-    // Return the Star Wars FFG skills configuration
-    return CONFIG.FFG?.skills || {};
+    return CONFIG.FFG?.skills || CONFIG.starwarsffg?.skills || {};
   }
 
   get configCurrencies() {
@@ -336,12 +358,11 @@ export class StarWarsFFG {
   }
 
   get configCanRollAbility() {
-    return true; // Star Wars FFG supports ability/characteristic rolls
+    return true;
   }
 
   get configRollAbilities() {
-    // Star Wars FFG characteristics
-    return CONFIG.FFG?.characteristics || {
+    return CONFIG.FFG?.characteristics || CONFIG.starwarsffg?.characteristics || {
       "Brawn": "br",
       "Agility": "ag", 
       "Intellect": "int",
@@ -352,7 +373,6 @@ export class StarWarsFFG {
   }
 
   get configDamageTypes() {
-    // Star Wars FFG doesn't use traditional damage types
     return {};
   }
 
@@ -383,23 +403,23 @@ export class StarWarsFFG {
       return null;
     }
 
-    // Create a simple dice pool for characteristic check
     const dicePool = {
       ability: characteristic.value || 0,
       proficiency: 0,
       boost: options.boost || 0,
       setback: options.setback || 0,
       challenge: options.challenge || 0,
-      difficulty: options.difficulty || 2 // Default difficulty
+      difficulty: options.difficulty || 2
     };
 
-    return game.ffg?.DiceHelpers?.rollSkillDirect(
-      dicePool,
-      actor,
-      {
-        characteristic: abilityId,
-        ...options
-      }
-    );
+    if (game.ffg?.DiceHelpers?.rollSkillDirect) {
+      return game.ffg.DiceHelpers.rollSkillDirect(dicePool, actor, { characteristic: abilityId, ...options });
+    } else if (game.starwarsffg?.DiceHelpers?.rollSkillDirect) {
+      return game.starwarsffg.DiceHelpers.rollSkillDirect(dicePool, actor, { characteristic: abilityId, ...options });
+    } else {
+      ui.notifications.warn("FFG dice roller not available, using basic roll");
+      const total = dicePool.ability + dicePool.proficiency + dicePool.boost - dicePool.setback;
+      return new Roll(`${total}d6`).evaluate({async: false});
+    }
   }
 }
