@@ -2,7 +2,7 @@
   "title": "Beaver's System Adapter for Star Wars FFG",
   "description": "Provides system-specific implementation for Star Wars FFG to work with Beaver's System Interface",
   "id": "bsa-starwarsffg",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "authors": [
     {
       "name": "villain4hire78",
