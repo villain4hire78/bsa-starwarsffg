@@ -1,0 +1,53 @@
+{
+  "title": "Beaver's System Adapter for Star Wars FFG",
+  "description": "Provides system-specific implementation for Star Wars FFG to work with Beaver's System Interface",
+  "id": "bsa-starwarsffg",
+  "version": "2.0.0",
+  "authors": [
+    {
+      "name": "villain4hire78",
+      "url": "https://github.com/villain4hire78/bsa-starwarsffg"
+    }
+  ],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    }
+  ],
+  "esmodules": [
+    "src/bsa-starwarsffg-main.js"
+  ],
+  "styles": [],
+  "packs": [],
+  "url": "https://github.com/villain4hire78/bsa-starwarsffg",
+  "manifest": "https://github.com/villain4hire78/bsa-starwarsffg/releases/latest/download/module.json",
+  "download": "https://github.com/villain4hire78/bsa-starwarsffg/releases/latest/download/bsa-starwarsffg.zip",
+  "relationships": {
+    "systems": [
+      {
+        "id": "starwarsffg",
+        "type": "system",
+        "compatibility": {
+          "minimum": "2.1.0"
+        }
+      }
+    ],
+    "requires": [
+      {
+        "id": "beavers-system-interface",
+        "type": "module",
+        "manifest": "https://github.com/AngryBeaver/beavers-system-interface/releases/latest/download/module.json",
+        "compatibility": {
+          "minimum": "2.1.1",
+          "verified": "2.2.5"
+        }
+      }
+    ]
+  },
+  "compatibility": {
+    "minimum": "11",
+    "verified": "12"
+  }
+}
